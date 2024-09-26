@@ -29,29 +29,26 @@ This project demonstrates applying convolutional filters on images, including **
 - **Input**: RGB or Grayscale image
 - **Output**: Filtered image
 
-### 3. Parallel Reduction Algorithms
-This project demonstrates parallel reduction algorithms, specifically focusing on summing an array efficiently using CUDA
-
-### 4. Linear Regression
+### 3. Linear Regression
 A CUDA-based implementation of **Linear Regression** using **Stochastic Gradient Descent (SGD)**. 
 
 - **Input**: Data points (features $X$ and targets $y$)
 - **Output**: Trained parameters $w$ and $b$ 
 
-### 5. Neural Network Inference
+### 4. Neural Network Inference
 This project performs inference for a neural network using CUDA. The network includes:
 - **Input**: Flatten grayscale image (size 784)
 - **Hidden Layer**: Size 128 with ReLU activation
 - **Output**: Classification probabilities (size 10)
 
 
-** In the Neural Network Inference project, we:**
+**In the Neural Network Inference project:**
 - Train the neural network on the MNIST dataset using the `TensorFlow` library.
 - Save the trained weights to a `*.txt` file.
 - Use CUDA to load the weights from the file and perform inference with the trained model.
 
 
-### 6. Matrix Factorization (Decomposition)
+### 5. Matrix Factorization (Decomposition)
 This project implements matrix factorization specifically **LU Decomposition**, where matrix $A$ is decomposed into a lower triangular matrix $L$ and an upper triangular matrix $U$.
 
 - **Input**: Matrix $A$
