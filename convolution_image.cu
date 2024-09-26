@@ -58,7 +58,8 @@ __global__ void applyConvolution(const unsigned char* inputImage, unsigned char*
     }
 }
 
-int main() {
+int main() 
+{
     const char* inputImagePath = "image/input_image.jpg";
     const char* outputImagePath = "image/output_kernel_image.jpg";
 

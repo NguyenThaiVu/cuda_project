@@ -5,6 +5,20 @@ This repository contains various projects demonstrating the use of **CUDA** for 
 <img src="./assert/nvidia_logo.jpg" width="300">
 
 
+## Table of Contents
+
+1. [Convert RGB to Grayscale](#1-convert-rgb-to-grayscale)
+2. [Apply Convolutional Computation](#2-apply-convolutional-computation)
+3. [Linear Regression](#3-linear-regression)
+4. [Neural Network Inference](#4-neural-network-inference)
+5. [Matrix Factorization (Decomposition)](#5-matrix-factorization-decomposition)
+6. [Seam Carving](#6-seam-carving)
+7. [Histogram Equalization](#7-histogram-equalization)
+8. [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [How to Run](#how-to-run)
+
+
 ## Contents
 
 
@@ -53,6 +67,26 @@ This project implements matrix factorization specifically **LU Decomposition**, 
 
 - **Input**: Matrix $A$
 - **Output**: Matrices $L$ and $U$ such that $A = L \times U$
+
+
+### 6. Seam Carving 
+This project demonstrates **seam carving**, a content-aware image resizing algorithm that removes seams (low-importance paths) to resize images while preserving key content. 
+
+- **Input**: RGB or Grayscale image
+- **Output**: Resized image with minimal distortion of important content
+
+### 7. Histogram Equalization
+This project implements **histogram equalization** to enhance image contrast by redistributing the intensity values of pixels. 
+The parallel processing on the GPU makes the histogram computation and intensity mapping highly efficient.
+
+- **Input**: Grayscale image
+- **Output**: Contrast-enhanced image
+
+**Detail**:
+- Each thread processes one pixel and updates the histogram.
+- The CDF is computed in shared memory to avoid multiple global memory accesses.
+- When apply histogram equalization, each thread calculate the output pixel.
+
 
 ## Getting Started
 
