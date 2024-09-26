@@ -44,6 +44,13 @@ This project performs inference for a neural network using CUDA. The network inc
 - **Hidden Layer**: Size 128 with ReLU activation
 - **Output**: Classification probabilities (size 10)
 
+
+** In the Neural Network Inference project, we:**
+- Train the neural network on the MNIST dataset using the `TensorFlow` library.
+- Save the trained weights to a `*.txt` file.
+- Use CUDA to load the weights from the file and perform inference with the trained model.
+
+
 ### 6. Matrix Factorization (Decomposition)
 This project implements matrix factorization specifically **LU Decomposition**, where matrix $A$ is decomposed into a lower triangular matrix $L$ and an upper triangular matrix $U$.
 
