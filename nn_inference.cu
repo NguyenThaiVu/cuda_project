@@ -161,9 +161,9 @@ int main() {
     float h_softmax_output[OUTPUT_SIZE];
     softmax(h_final_output, h_softmax_output, OUTPUT_SIZE);
 
-    std::cout << "Softmax output:" << std::endl;
+    cout << "Softmax output:" << endl;
     for (int i = 0; i < OUTPUT_SIZE; ++i) {
-        std::cout << h_softmax_output[i] << std::endl;
+        cout << h_softmax_output[i] << endl;
     }
 
     cudaFree(d_input);
