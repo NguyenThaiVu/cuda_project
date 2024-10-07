@@ -28,7 +28,6 @@ __global__ void matrix_multiplication(float* A, float* B, float* C,
 {
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
-    printf("row: %d, col: %d\n", row, col);
 
     if (row < height_c && col < width_c) 
     {
