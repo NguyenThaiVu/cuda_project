@@ -1,50 +1,92 @@
+#include <iostream>
+#include <fstream>
+using namespace std;
 #include <stdio.h>
 
-__global__ void matrix_multiplication(float* A, float* B, float* C, int width, int height)
+void save_to_file(float x[], int size, string filename)
 {
-    int x = threadIdx.x;
-    int y = threadIdx.y;
-    // printf("Thread x: %d, Thread y: %d\n", threadIdx.x, threadIdx.y);
-
-    if (x < width && y < height) 
+    ofstream myfile (filename);
+    if (myfile.is_open())
     {
-        int idx = (y * width + x);  
-        float value = 0.0f;
-        for (int w = 0; w < width; ++w) 
-        {
-            value += A[y * width + w] * B[w * width + x];
+        for(int count = 0; count < size; count ++){
+            myfile << x[count] << endl ;
         }
-        C[idx] = value;
+        myfile.close();
+    }
+    else cout << "Unable to open file";
+}
+
+
+/*
+This function performa matrix multiplication C = A*B, where each thread computes one element of matrix C.
+A: height_a x width_a
+B: height_b x width_b
+C: height_c x width_c
+*/
+__global__ void matrix_multiplication(float* A, float* B, float* C, 
+                                    int height_a, int width_a, int height_b, int width_b, int height_c, int width_c)
+{
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    printf("row: %d, col: %d\n", row, col);
+
+    if (row < height_c && col < width_c) 
+    {
+        float value = 0.0f;
+        for (int w = 0; w < width_a; w++) 
+        {
+            value += A[row * width_a + w] * B[w * width_b + col];
+        }
+
+        int C_idx = (row * width_c + col);  
+        C[C_idx] = value;
     }
 }
 
 int main(void) 
 {
-    int height = 2;
-    int width = 2;
-    int N = height * width;
+    int height_a = 50;
+    int width_a = 20;
+    int height_b = 20;
+    int width_b = 30;
+    
+    int height_c = height_a;
+    int width_c = width_b;
 
-    float A[N] = {1, 2, 3, 4};
-    float B[N] = {1, 2, 3, 4};
-    float C[N];
+    float A[height_a * width_a];
+    for (int i = 0; i < height_a*width_a; i++) {
+        A[i] = i;
+    }
+
+    float B[height_b * width_b];
+    for (int i = 0; i < height_b*width_b; i++) {
+        B[i] = i;
+    }
+
+    float C[height_c * width_c];
+
 
     // Device pointers for vectors A, B, and C
     float *d_A, *d_B, *d_C; 
 
     // Allocate memory on the device
-    cudaMalloc((void **)&d_A, N * sizeof(float));
-    cudaMalloc((void **)&d_B, N * sizeof(float));
-    cudaMalloc((void **)&d_C, N * sizeof(float));
+    cudaMalloc((void **)&d_A, height_a * width_a * sizeof(float));
+    cudaMalloc((void **)&d_B, height_b * width_b * sizeof(float));
+    cudaMalloc((void **)&d_C, height_c * width_c * sizeof(float));
 
     // Copy data from host to device
-    cudaMemcpy(d_A, A, N * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, B, N * sizeof(float), cudaMemcpyHostToDevice);    
+    cudaMemcpy(d_A, A, height_a * width_a * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B, height_b * width_b * sizeof(float), cudaMemcpyHostToDevice);    
 
-    dim3 blockDim(height, width);
-    matrix_multiplication<<<1, blockDim>>>(d_A, d_B, d_C, height, width);
+    int BLOCK_DIM = 16;
+    dim3 BLOCK_SIZE(BLOCK_DIM, BLOCK_DIM);
+    dim3 GRID_SIZE((width_c + BLOCK_DIM - 1) / BLOCK_DIM, (height_c + BLOCK_DIM - 1) / BLOCK_DIM);
+
+    matrix_multiplication<<<GRID_SIZE, BLOCK_SIZE>>>(d_A, d_B, d_C, height_a, width_a, height_b, width_b, height_c, width_c);
+    cudaDeviceSynchronize();
 
     // Copy data from device to host
-    cudaMemcpy(C, d_C, N * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(C, d_C, height_c * width_c * sizeof(float), cudaMemcpyDeviceToHost);
 
     // Check for error
     cudaError_t error = cudaGetLastError();
@@ -53,16 +95,10 @@ int main(void)
         exit(-1);
     }
     
-    cudaDeviceSynchronize();
-    
-    // Free device memory
+    save_to_file(C, height_c * width_c, "output_matrix_C.txt");
+
     cudaFree(d_A);
     cudaFree(d_B);
     cudaFree(d_C);
-
-    for (int i = 0; i < N; ++i) {
-        printf("C[%d] = %f\n", i, C[i]);
-    }
-
     return 0;
 }
