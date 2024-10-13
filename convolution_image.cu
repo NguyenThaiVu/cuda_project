@@ -4,9 +4,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "utils/stb_image_write.h"  
 
+#include "utils/helper.cu"
+
 #include <iostream>
 #include <cuda_runtime.h>
 using namespace std;
+
 
 // Define the convolution kernel. Reference: https://en.wikipedia.org/wiki/Kernel_(image_processing)
 
@@ -24,36 +27,44 @@ using namespace std;
 //    {0, -1, 0}
 //};
 
-// Gaussian blur
-__constant__ float kernel[3][3] = {
-   {0.0625, 0.125, 0.0625},
-   {0.125, 0.25, 0.125},
-   {0.0625, 0.125, 0.0625}
-};
 
-
-
-__global__ void applyConvolution(const unsigned char* inputImage, unsigned char* outputImage, int width, int height, int channels) 
+/*
+Function to apply 2D convolution on an image.
+inputImage: Input image
+outputImage: Output image
+width: Width of input image
+height: Height of output image
+channels: Number of channels in the image (RGB = 3)
+kernel: Convolution kernel
+width_kernel: Width of the convolution kernel
+*/
+__global__ void applyConvolution(const unsigned char* inputImage, unsigned char* outputImage, int width, int height, int channels,
+                                 float* kernel, int width_kernel) 
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;  
-    int y = blockIdx.y * blockDim.y + threadIdx.y;  
+    int col = blockIdx.x * blockDim.x + threadIdx.x;  
+    int row = blockIdx.y * blockDim.y + threadIdx.y;  
 
-    // Apply convolution only if the pixel is within bounds (excluding boundary)
-    if (x > 0 && x < (width - 1) && y > 0 && y < (height - 1)) {
-        for (int c = 0; c < channels; c++) {
+    if (col > 0 && col < (width - 1) && row > 0 && row < (height - 1)) 
+    {
+        for (int c = 0; c < channels; c++) 
+        {
             float pixelValue = 0.0f;
 
-            for (int i = -1; i <= 1; ++i) {
-                for (int j = -1; j <= 1; ++j) {
-                    int pixelX = x + j;
-                    int pixelY = y + i;
-                    pixelValue += inputImage[(pixelY * width + pixelX) * channels + c] * kernel[i + 1][j + 1];
+            for (int i = 0; i < width_kernel; i++) 
+            {
+                for (int j = 0; j < width_kernel; j++) 
+                {
+                    int idx_row_image = row + i;
+                    int idx_col_image = col + j;
+                    int idx_image = idx_row_image * width * channels + idx_col_image * channels + c;
+                    pixelValue += inputImage[idx_image] * kernel[i * width_kernel + j];
+                    // pixelValue += inputImage[(pixelY * width + pixelX) * channels + c] * kernel[i + 1][j + 1];
                 }
             }
 
-            // Clip pixel values to [0, 255]
-            pixelValue = min(max(pixelValue, 0.0f), 255.0f);
-            outputImage[(y * width + x) * channels + c] = static_cast<unsigned char>(pixelValue);
+            pixelValue = min(max(pixelValue, 0.0f), 255.0f);  // Clip pixel to [0, 255]
+            int idx_output = row * width * channels + col * channels + c;
+            outputImage[idx_output] = static_cast<unsigned char>(pixelValue);
         }
     }
 }
@@ -61,32 +72,46 @@ __global__ void applyConvolution(const unsigned char* inputImage, unsigned char*
 int main() 
 {
     const char* inputImagePath = "image/input_image.jpg";
-    const char* outputImagePath = "image/output_kernel_image.jpg";
+    const char* outputImagePath = "image/output_image_blur.jpg";
 
+    // Load input image
     int width, height, channels;
-    
     unsigned char* h_inputImage = stbi_load(inputImagePath, &width, &height, &channels, 0);
     if (!h_inputImage) {
         cerr << "Error: Failed to load image!" << endl;
         return -1;
     }
 
+    // Gaussian blur
+    int kernel_width = 3;
+    float kernel[3 * 3] = {0.0625, 0.125, 0.0625,
+                        0.125, 0.25, 0.125,
+                        0.0625, 0.125, 0.0625};
+
     // Allocate output image
     unsigned char* h_outputImage = (unsigned char*)malloc(width * height * channels);
 
     // Allocate device memory
     unsigned char *d_inputImage, *d_outputImage;
+    float *d_kernel;
     cudaMalloc((void**)&d_inputImage, width * height * channels * sizeof(unsigned char));
     cudaMalloc((void**)&d_outputImage, width * height * channels * sizeof(unsigned char));
+    cudaMalloc((void**)&d_kernel, kernel_width * kernel_width * sizeof(float));
 
     cudaMemcpy(d_inputImage, h_inputImage, width * height * channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_kernel, kernel, kernel_width * kernel_width * sizeof(float), cudaMemcpyHostToDevice);
 
     // Define block and grid dimensions
-    dim3 blockDim(16, 16);
+    int BLOCK_DIMENSION = 16;
+    dim3 blockDim(BLOCK_DIMENSION, BLOCK_DIMENSION);
     dim3 gridDim((width + blockDim.x - 1) / blockDim.x, (height + blockDim.y - 1) / blockDim.y);
 
-    applyConvolution<<<gridDim, blockDim>>>(d_inputImage, d_outputImage, width, height, channels);
+    GpuTimer timer;
+    timer.Start();
+    applyConvolution<<<gridDim, blockDim>>>(d_inputImage, d_outputImage, width, height, channels, d_kernel, kernel_width);
     cudaDeviceSynchronize();
+    timer.Stop();
+    printf("Time: %.3f ms\n", timer.Elapsed());
 
     // Copy the result back to the host
     cudaMemcpy(h_outputImage, d_outputImage, width * height * channels * sizeof(unsigned char), cudaMemcpyDeviceToHost);
@@ -97,6 +122,7 @@ int main()
     free(h_outputImage);
     cudaFree(d_inputImage);
     cudaFree(d_outputImage);
+    cudaFree(d_kernel);
 
     return 0;
 }
