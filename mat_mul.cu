@@ -2,7 +2,11 @@
 #include <fstream>
 using namespace std;
 #include <stdio.h>
-#include "utils/helper.cu"
+#include "utils/gpu_helper.cu"
+
+
+#define BLOCK_SIZE 32
+
 
 /*
 Define helper functions for matrix
@@ -64,8 +68,7 @@ __global__ void mat_mul(Matrix A, Matrix B, Matrix C)
 This function perform matrix multiplication C = A*B.
 This version uses shared memory, where each block compute each C_sub.
 */
-#define BLOCK_SIZE 16
-__global__ void mat_mul_v2(Matrix A, Matrix B, Matrix C)
+__global__ void mat_mul_shared_mem(Matrix A, Matrix B, Matrix C)
 {
     int block_row_idx = blockIdx.y;
     int block_col_idx = blockIdx.x;
@@ -102,14 +105,71 @@ __global__ void mat_mul_v2(Matrix A, Matrix B, Matrix C)
     SetElement(Csub, row, col, value);
 }
 
+/*
+Create a matrix multiplication on host code. CPU will call this function to perform matrix multiplication.
+*/
+void MatMul(Matrix A, Matrix B, Matrix C)
+{
+    // Device pointers for vectors A, B, and C
+    Matrix d_A, d_B, d_C; 
+
+    // Allocate memory on the device
+    d_A.width = A.width;
+    d_A.height = A.height;
+    d_A.stride = d_A.width;
+    size_t size_a = d_A.height * d_A.width * sizeof(float);
+    cudaMalloc((void **)&d_A.elements, size_a * sizeof(float));
+    cudaMemcpy(d_A.elements, A.elements, size_a, cudaMemcpyHostToDevice);
+
+    d_B.width = B.width;
+    d_B.height = B.height;
+    d_B.stride = d_B.width;
+    size_t size_b = d_B.height * d_B.width * sizeof(float);
+    cudaMalloc((void **)&d_B.elements, size_b);
+    cudaMemcpy(d_B.elements, B.elements, size_b, cudaMemcpyHostToDevice);
+
+    d_C.width = C.width;
+    d_C.height = C.height;
+    d_C.stride = d_C.width;
+    size_t size_c = d_C.height * d_C.width * sizeof(float);
+    cudaMalloc((void **)&d_C.elements, size_c);
+
+    // Call kernel
+    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    dim3 dimGrid((C.width + BLOCK_SIZE) / BLOCK_SIZE,  (C.height + BLOCK_SIZE) / BLOCK_SIZE);
+
+    GpuTimer timer;
+    timer.Start();
+    mat_mul<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+    // mat_mul_shared_mem<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+    cudaDeviceSynchronize();
+    timer.Stop();
+    printf("GPU time: %.3f ms\n", timer.Elapsed());
+
+    // Check for error
+    cudaError_t error = cudaGetLastError();
+    if(error != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+    
+    // Copy data from device to host
+    cudaMemcpy(C.elements, d_C.elements, size_c, cudaMemcpyDeviceToHost);
+    
+    cudaFree(d_A.elements);
+    cudaFree(d_B.elements);
+    cudaFree(d_C.elements);
+}
+
+
 
 
 int main(void) 
 {
-    int height_a = 50;
-    int width_a = 20;
-    int height_b = 20;
-    int width_b = 30;
+    int height_a = 5000;
+    int width_a = 2000;
+    int height_b = 2000;
+    int width_b = 3000;
     
     Matrix A, B, C;
     A.width = width_a;
@@ -133,48 +193,7 @@ int main(void)
     C.stride = C.width;
     C.elements = new float[C.height * C.width];
 
-    // Device pointers for vectors A, B, and C
-    Matrix d_A, d_B, d_C; 
-
-    // Allocate memory on the device
-    d_A.width = A.width;
-    d_A.height = A.height;
-    size_t size_a = d_A.height * d_A.width * sizeof(float);
-    cudaMalloc((void **)&d_A.elements, size_a * sizeof(float));
-    cudaMemcpy(d_A.elements, A.elements, size_a, cudaMemcpyHostToDevice);
-
-    d_B.width = B.width;
-    d_B.height = B.height;
-    size_t size_b = d_B.height * d_B.width * sizeof(float);
-    cudaMalloc((void **)&d_B.elements, size_b);
-    cudaMemcpy(d_B.elements, B.elements, size_b, cudaMemcpyHostToDevice);
-
-    d_C.width = C.width;
-    d_C.height = C.height;
-    size_t size_c = d_C.height * d_C.width * sizeof(float);
-    cudaMalloc((void **)&d_C.elements, size_c);
-
-    // Call kernel
-    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid((C.width + BLOCK_SIZE) / BLOCK_SIZE,  (C.height + BLOCK_SIZE) / BLOCK_SIZE);
-
-    GpuTimer timer;
-    timer.Start();
-    mat_mul<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-    // mat_mul_v2<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-    cudaDeviceSynchronize();
-    timer.Stop();
-    printf("Time: %.3f ms\n", timer.Elapsed());
-
-    // Check for error
-    cudaError_t error = cudaGetLastError();
-    if(error != cudaSuccess) {
-        printf("CUDA error: %s\n", cudaGetErrorString(error));
-        exit(-1);
-    }
-    
-    // // Copy data from device to host
-    // cudaMemcpy(C.elements, d_C.elements, size_c, cudaMemcpyDeviceToHost);
+    MatMul(A, B, C);
 
     // save_to_file(C.elements, C.height * C.width, "output_matrix_C.txt");
 
@@ -182,9 +201,6 @@ int main(void)
     delete[] B.elements;
     delete[] C.elements;
 
-    cudaFree(d_A.elements);
-    cudaFree(d_B.elements);
-    cudaFree(d_C.elements);
     return 0;
 }
 

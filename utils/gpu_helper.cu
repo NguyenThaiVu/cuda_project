@@ -74,15 +74,15 @@ void printDeviceInfo()
 }
 
 
-void save_to_file(float x[], int size, string filename)
+__device__ float relu(float x) 
 {
-    ofstream myfile (filename);
-    if (myfile.is_open())
-    {
-        for(int count = 0; count < size; count ++){
-            myfile << x[count] << endl ;
-        }
-        myfile.close();
+    return x > 0.0f ? x : 0.0f;
+}
+
+__global__ void applyReLU_vector(float* data, int size) 
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if (tid < size) {
+        data[tid] = relu(data[tid]);
     }
-    else cout << "Unable to open file";
 }
