@@ -2,6 +2,7 @@
 using namespace std;
 #include <stdio.h>
 #include <fstream>
+#include <time.h>
 
 /*
 This file define helper functions for CUDA programming, such as: error checking, print device info, save data to file, etc.
@@ -64,6 +65,12 @@ void printDeviceInfo()
     printf("**********GPU info**********\n");
     printf("Name: %s\n", devProv.name);
     printf("Compute capability: %d.%d\n", devProv.major, devProv.minor);
+    printf("Max threads per block: %d\n", devProv.maxThreadsPerBlock);
+    printf("Max threads dimensions (x,y,z): (%d, %d, %d)\n",
+           devProv.maxThreadsDim[0], devProv.maxThreadsDim[1], devProv.maxThreadsDim[2]);
+    printf("Max grid size (x,y,z): (%d, %d, %d)\n",
+           devProv.maxGridSize[0], devProv.maxGridSize[1], devProv.maxGridSize[2]);
+
     printf("Num SMs: %d\n", devProv.multiProcessorCount);
     printf("Max num threads per SM: %d\n", devProv.maxThreadsPerMultiProcessor); 
     printf("Max num warps per SM: %d\n", devProv.maxThreadsPerMultiProcessor / devProv.warpSize);

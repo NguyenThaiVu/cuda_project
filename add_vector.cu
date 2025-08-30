@@ -4,10 +4,47 @@ using namespace std;
 #include </home/thaiv7/Desktop/cuda_project/utils/in_out_helper.h>
 #include </home/thaiv7/Desktop/cuda_project/utils/gpu_helper.cu>
 
-__global__ void addTwoVectorsDevice(float A[], float B[], float C[], int N)
+__global__ void addTwoVectorKernel(float *A, float *B, float *C, int n)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    C[i] = A[i] + B[i];
+    if (i < n)
+    {
+        C[i] = A[i] + B[i];
+    }
+}
+
+void addTwoVectorDevice(float *A, float *B, float *C, int n)
+{
+    float *d_A, *d_B, *d_C;
+
+    cudaMalloc((void **)&d_A, n * sizeof(float));
+    cudaMalloc((void **)&d_B, n * sizeof(float));
+    cudaMalloc((void **)&d_C, n * sizeof(float));
+
+    cudaMemcpy(d_A, A, n * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B, n * sizeof(float), cudaMemcpyHostToDevice);
+
+    int BLOCK_SIZE = 32;
+    int GRID_SIZE = int(n / BLOCK_SIZE) + 1;
+    GpuTimer timer;
+    timer.Start();
+    addTwoVectorKernel<<<GRID_SIZE, BLOCK_SIZE>>>(d_A, d_B, d_C, n);
+    cudaDeviceSynchronize(); // wait to device computation is finished.
+    timer.Stop();
+    printf("GPU Time: %.3f ms\n", timer.Elapsed());
+
+    cudaMemcpy(C, d_C, n * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(error));
+        exit(-1);
+    }
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
 }
 
 void addTwoVectorHost(float A[], float B[], float C[], int N)
@@ -33,42 +70,17 @@ int main(void)
     }
     addTwoVectorHost(A, B, trueC, N);
 
-    float *d_A, *d_B, *d_C;
-    cudaMalloc((void**)&d_A, N * sizeof(float));
-    cudaMalloc((void**)&d_B, N * sizeof(float));
-    cudaMalloc((void**)&d_C, N * sizeof(float));
-
-    cudaMemcpy(d_A, A, N*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, B, N*sizeof(float), cudaMemcpyHostToDevice);
-
-    int BLOCK_SIZE = 32;
-    int NUM_GRID = int(N / BLOCK_SIZE) + 1;
-
-    GpuTimer timer;
-    timer.Start();
-    addTwoVectorsDevice<<<NUM_GRID, BLOCK_SIZE>>>(d_A, d_B, d_C, N);
-    cudaDeviceSynchronize(); // wait to device computation is finished.
-    timer.Stop();
-    printf("GPU Time: %.3f ms\n", timer.Elapsed());
-
-    cudaMemcpy(C, d_C, N * sizeof(float), cudaMemcpyDeviceToHost);
-    cudaError_t error = cudaGetLastError();
-    if(error != cudaSuccess) {
-        printf("CUDA error: %s\n", cudaGetErrorString(error));
-        exit(-1);
-    }
+    addTwoVectorDevice(A, B, C, N);
 
     bool isSimilar = compare2Vector(C, trueC, N);
     if (isSimilar == true)
     {
         cout << "CUDA implementation is correct" << endl;
-    } else {
+    }
+    else
+    {
         cout << "CUDA is incorrect" << endl;
     }
-
-    cudaFree(d_A);
-    cudaFree(d_B);
-    cudaFree(d_C);
 
     return 0;
 }
