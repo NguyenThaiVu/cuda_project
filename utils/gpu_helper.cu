@@ -74,6 +74,8 @@ void printDeviceInfo()
     printf("Num SMs: %d\n", devProv.multiProcessorCount);
     printf("Max num threads per SM: %d\n", devProv.maxThreadsPerMultiProcessor); 
     printf("Max num warps per SM: %d\n", devProv.maxThreadsPerMultiProcessor / devProv.warpSize);
+    printf("Max block per SM: %d\n", devProv.maxBlocksPerMultiProcessor);
+    
     printf("GMEM: %zu byte\n", devProv.totalGlobalMem);
     printf("SMEM per SM: %zu byte\n", devProv.sharedMemPerMultiprocessor);
     printf("SMEM per block: %zu byte\n", devProv.sharedMemPerBlock);

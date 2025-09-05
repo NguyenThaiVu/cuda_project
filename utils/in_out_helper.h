@@ -4,13 +4,7 @@
 #include <fstream>
 using namespace std;
 
-void print1DArray(float *A, int N)
-{
-    for (int i = 0; i < N; i++)
-    {
-        cout << A[i] << " ";
-    }
-}
+
 
 bool compare2Vector(float *A, float *B, int N)
 {

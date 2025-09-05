@@ -2,7 +2,6 @@
 using namespace std;
 #include <stdio.h>
 #include </home/thaiv7/Desktop/cuda_project/utils/in_out_helper.h>
-#include </home/thaiv7/Desktop/cuda_project/utils/gpu_helper.cu>
 
 __global__ void addTwoVectorKernel(float *A, float *B, float *C, int n)
 {
@@ -26,12 +25,8 @@ void addTwoVectorDevice(float *A, float *B, float *C, int n)
 
     int BLOCK_SIZE = 32;
     int GRID_SIZE = int(n / BLOCK_SIZE) + 1;
-    GpuTimer timer;
-    timer.Start();
     addTwoVectorKernel<<<GRID_SIZE, BLOCK_SIZE>>>(d_A, d_B, d_C, n);
     cudaDeviceSynchronize(); // wait to device computation is finished.
-    timer.Stop();
-    printf("GPU Time: %.3f ms\n", timer.Elapsed());
 
     cudaMemcpy(C, d_C, n * sizeof(float), cudaMemcpyDeviceToHost);
 
