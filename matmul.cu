@@ -3,8 +3,19 @@ using namespace std;
 #include <stdio.h>
 #include </home/thaiv7/Desktop/cuda_project/utils/in_out_helper.h>
 #include </home/thaiv7/Desktop/cuda_project/utils/matrix_utils.cu>
+#include </home/thaiv7/Desktop/cuda_project/utils/gpu_helper.cu>
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
+
+inline double gflops_from_ms(long long M, long long N, long long K,
+                             double elapsed_ms, int repeats = 1)
+{
+    // Total floating-point operation for GEMM
+    long double ops = 2.0L * (long double)M * (long double)N * (long double)K * (long double)repeats;
+    long double seconds = elapsed_ms / 1000.0L;
+    long double gflops = ops / (seconds * 1.0e9L);
+    return static_cast<double>(gflops);
+}
 
 __global__ void matmulDeviceKernel(Matrix d_A, Matrix d_B, Matrix d_C)
 {
@@ -23,7 +34,7 @@ __global__ void matmulDeviceKernel(Matrix d_A, Matrix d_B, Matrix d_C)
     }
 }
 
-
+// TODO: implement for matrix size not multiple of BLOCK_SIZE
 __global__ void matmulDeviceKernelSharedMem(Matrix d_A, Matrix d_B, Matrix d_C)
 {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -36,8 +47,8 @@ __global__ void matmulDeviceKernelSharedMem(Matrix d_A, Matrix d_B, Matrix d_C)
     float value = 0.0;
     for (int idxTile = 0; idxTile < numTile; idxTile++)
     {
-        int sx = threadIdx.x; 
-        int sy = threadIdx.y; 
+        int sx = threadIdx.x;
+        int sy = threadIdx.y;
 
         if ((row < d_A.height) && (idxTile * BLOCK_SIZE + sx < d_A.width))
             subMatrixA_share[sy][sx] = getElementMatrix(d_A, row, idxTile * BLOCK_SIZE + sx);
@@ -87,9 +98,32 @@ void matmulDevice(Matrix A, Matrix B, Matrix C)
     dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     dim3 dimGrid((d_C.width + BLOCK_SIZE - 1) / BLOCK_SIZE, (d_C.height + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
-    // matmulDeviceKernel<<<GRID_SIZE, BLOCK_SIZE>>>(d_A, d_B, d_C);
-    matmulDeviceKernelSharedMem<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-    cudaDeviceSynchronize(); // wait to device computation is finished.
+    // Warm up
+    // matmulDeviceKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+    for (int i = 0; i < 10; ++i)
+    {
+        matmulDeviceKernelSharedMem<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+        cudaDeviceSynchronize();
+    }
+
+    GpuTimer timer;
+    float totalTime = 0;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        timer.Start();
+        // matmulDeviceKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+        matmulDeviceKernelSharedMem<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+        cudaDeviceSynchronize(); // wait to device computation is finished.
+        timer.Stop();
+        float ms = timer.Elapsed();
+        totalTime += ms;
+    }
+    float ms = totalTime / 10.0f;
+    printf("Kernel execution time: %f ms\n", ms);
+
+    double gflops = gflops_from_ms(d_A.height, B.width, B.height, ms);
+    printf("Performance: %f GFLOPS\n", gflops);
 
     cudaMemcpy(C.arr, d_C.arr, d_C.height * d_C.width * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -107,12 +141,11 @@ void matmulDevice(Matrix A, Matrix B, Matrix C)
 
 int main()
 {
-    int m = 1022;
-    int n = 519;
-    int p = 511;
+    int m = 512;
+    int n = 512;
+    int p = 512;
 
     Matrix A, B, C, C_host;
-
     initMatrixHost(&A, m, p, 1.0);
     initMatrixHost(&B, p, n, 1.0);
     initMatrixHost(&C_host, m, n, 0.0);
@@ -140,6 +173,5 @@ int main()
     free(B.arr);
     free(C_host.arr);
     free(C.arr);
-
     return 0;
 }

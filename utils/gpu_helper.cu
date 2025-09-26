@@ -20,40 +20,29 @@ This file define helper functions for CUDA programming, such as: error checking,
     }\
 }
 
-struct GpuTimer
-{
-    cudaEvent_t start;
-    cudaEvent_t stop;
+struct GpuTimer {
+    cudaEvent_t start, stop;
+    cudaStream_t stream;  // stream to time (default 0)
 
-    GpuTimer()
-    {
+    GpuTimer(cudaStream_t s = 0) : stream(s) {
         cudaEventCreate(&start);
         cudaEventCreate(&stop);
     }
-
-    ~GpuTimer()
-    {
+    ~GpuTimer() {
         cudaEventDestroy(start);
         cudaEventDestroy(stop);
     }
-
-    void Start()
-    {
-        cudaEventRecord(start, 0);
-        cudaEventSynchronize(start);
+    void Start() {
+        cudaEventRecord(start, stream);   // no sync here
     }
-
-    void Stop()
-    {
-        cudaEventRecord(stop, 0);
+    void Stop() {
+        cudaEventRecord(stop, stream);
     }
-
-    float Elapsed()
-    {
-        float elapsed;
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&elapsed, start, stop);
-        return elapsed;
+    float Elapsed() {
+        cudaEventSynchronize(stop);       // wait for work between start/stop
+        float ms = 0.0f;
+        cudaEventElapsedTime(&ms, start, stop);
+        return ms;
     }
 };
 
